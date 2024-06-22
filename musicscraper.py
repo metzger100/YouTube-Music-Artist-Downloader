@@ -155,6 +155,7 @@ def download_item(item_url, artist_name):
         "-f", "bestaudio",
         "--extract-audio",
         "--parse-metadata", "release_year:(?s)(?P<meta_date>.+)",
+        "--parse-metadata", "playlist_index:(?s)(?P<track_number>.+)",
         "--audio-format", "m4a",
         "--embed-metadata",
         "--add-metadata",

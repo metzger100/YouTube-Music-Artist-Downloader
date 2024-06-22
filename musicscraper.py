@@ -118,16 +118,31 @@ def update_metadata(file_path, album_artist):
 def move_to_finished_folder(src_folder, dest_folder):
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
-    for item in os.listdir(src_folder):
-        s = os.path.join(src_folder, item)
-        d = os.path.join(dest_folder, item)
-        shutil.move(s, d)
+    for root, dirs, files in os.walk(src_folder, topdown=False):
+        # Ensure the destination directories exist
+        for name in dirs:
+            dest_dir = os.path.join(dest_folder, os.path.relpath(os.path.join(root, name), src_folder))
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir)
+
+        # Move all files
+        for name in files:
+            src_file = os.path.join(root, name)
+            dest_file = os.path.join(dest_folder, os.path.relpath(src_file, src_folder))
+            dest_dir = os.path.dirname(dest_file)
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir)
+            shutil.move(src_file, dest_file)
+
+    # Remove empty directories
+    shutil.rmtree(src_folder)
+
     print(f"Debug: Moved {src_folder} to {dest_folder}")
 
 def download_item(item_url, artist_name):
-    music_folder = "tmp"
-    if not os.path.exists(music_folder):
-        os.makedirs(music_folder)
+    tmp_folder = "tmp"
+    if not os.path.exists(tmp_folder):
+        os.makedirs(tmp_folder)
     command = [
         "yt-dlp",
         "-f", "bestaudio",
@@ -137,23 +152,22 @@ def download_item(item_url, artist_name):
         "--embed-metadata",
         "--add-metadata",
         "--embed-thumbnail",
-        "--output", os.path.join(music_folder, "%(artist)s/%(album)s/%(title)s.%(ext)s"),
+        "--output", os.path.join(tmp_folder, artist_name, "%(album)s/%(title)s.%(ext)s"),
         item_url
     ]
     subprocess.run(command)
     print(f"Debug: Download finished!")
 
     # Update metadata and move files
-    for root, dirs, files in os.walk(music_folder):
+    for root, dirs, files in os.walk(tmp_folder):
         for file in files:
             if file.endswith(".m4a"):
                 file_path = os.path.join(root, file)
                 update_metadata(file_path, artist_name)
 
     time.sleep(2)
-    finished_folder = os.path.join("music", artist_name)
-    artist_folder = os.path.join(music_folder)
-    move_to_finished_folder(artist_folder, finished_folder)
+    finished_folder = "music"
+    move_to_finished_folder(tmp_folder, finished_folder)
     time.sleep(2)
 
 def main():

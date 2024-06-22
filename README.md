@@ -13,11 +13,13 @@ Townes van Zandt
 Seeed
 ACDC
 ```
-4. Install all dependencies of the script:
-python-libs:
+4. Install all dependencies of the script:<br />
+
+python-libs:<br />
 - selenium (https://aur.archlinux.org/packages/python-selenium)
 - mutagen (https://archlinux.org/packages/extra/any/python-mutagen/)
-System-packages:
+
+System-packages:<br />
 - google-chrome (https://aur.archlinux.org/packages/google-chrome)
 - chromedriver (https://aur.archlinux.org/packages/chromedriver)
 - yt-dlp (https://archlinux.org/packages/extra/any/yt-dlp/)

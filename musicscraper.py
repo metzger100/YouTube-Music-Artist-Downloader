@@ -1,6 +1,5 @@
 import difflib
 import os
-import re
 import shutil
 import subprocess
 import time
@@ -110,11 +109,6 @@ def read_artists(filename):
     with open(filename, 'r', encoding='utf-8') as file:
         return [line.strip() for line in file if line.strip()]
 
-def sanitize_filename(filename):
-    sanitized = re.sub(r'[:<>|?*"]', '', filename)
-    print(f"Debug: Sanitizing filename - Input: {filename}, Output: {sanitized}")
-    return sanitized
-
 def update_metadata(file_path, album_artist):
     audio = EasyMP4(file_path)
     audio['albumartist'] = album_artist
@@ -134,11 +128,6 @@ def download_item(item_url, artist_name):
     music_folder = "tmp"
     if not os.path.exists(music_folder):
         os.makedirs(music_folder)
-
-    sanitized_artist = sanitize_filename("%(artist)s")
-    sanitized_album = sanitize_filename("%(album)s")
-    sanitized_title = sanitize_filename("%(title)s")
-
     command = [
         "yt-dlp",
         "-f", "bestaudio",
@@ -148,14 +137,14 @@ def download_item(item_url, artist_name):
         "--embed-metadata",
         "--add-metadata",
         "--embed-thumbnail",
-        "--output", os.path.join(music_folder, f"{sanitized_artist}/{sanitized_album}/{sanitized_title}.%(ext)s"),
+        "--output", os.path.join(music_folder, "%(artist)s/%(album)s/%(title)s.%(ext)s"),
         item_url
     ]
     subprocess.run(command)
+    print(f"Debug: Download finished!")
 
     # Update metadata and move files
-    artist_folder = os.path.join(music_folder, artist_name)
-    for root, dirs, files in os.walk(artist_folder):
+    for root, dirs, files in os.walk(music_folder):
         for file in files:
             if file.endswith(".m4a"):
                 file_path = os.path.join(root, file)
@@ -163,6 +152,7 @@ def download_item(item_url, artist_name):
 
     time.sleep(2)
     finished_folder = os.path.join("music", artist_name)
+    artist_folder = os.path.join(music_folder)
     move_to_finished_folder(artist_folder, finished_folder)
     time.sleep(2)
 

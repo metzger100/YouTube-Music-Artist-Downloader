@@ -1,5 +1,6 @@
 import difflib
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -37,8 +38,8 @@ def click_privacy_button():
         button.click()
         time.sleep(2)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
         print("Debug: 'Alle ablehnen' button clicked successfully.")
-    except Exception as e:
-        print(f"Debug: Privacy button not found or could not be clicked: {e}")
+    except Exception:
+        print(f"Debug: Privacy button not found or could not be clicked.")
 
 def similarity_ratio(str1, str2):
     return difflib.SequenceMatcher(None, str1, str2).ratio()
@@ -51,7 +52,7 @@ def extract_artist_href(search_term, artist):
     click_privacy_button()  # Datenschutzbutton klicken
     # save_page_source('search_page.html')  # Speichern der geladenen Suchseite für Debugging
 
-    artist_elements = driver.find_elements(By.CSS_SELECTOR, 'a.yt-simple-endpoint.thumbnail-link')
+    artist_elements = driver.find_elements(By.CSS_SELECTOR, 'a.yt-simple-endpoint.thumbnail-link[href*="channel/"]')
     print(f"Debug: Found {len(artist_elements)} elements with selector 'a.yt-simple-endpoint.thumbnail-link'")
 
     for element in artist_elements:
@@ -69,23 +70,26 @@ def extract_section_hrefs(section_name):
     sections = driver.find_elements(By.CSS_SELECTOR, 'div.ytmusic-shelf')
     for section in sections:
         try:
-            # First, check if there is an <a> tag with the section name (href-Titelklasse)
-            link_element = section.find_element(By.XPATH, f'.//a[contains(text(), "{section_name}")]')
+            # Versuchen, den <a>-Tag mit dem Abschnittsnamen zu finden
+            link_element = section.find_element(By.XPATH, f"//yt-formatted-string[contains(@class, 'title text style-scope ytmusic-carousel-shelf-basic-header-renderer') and .//a[contains(@href, 'browse/') and contains(text(), '{section_name}')]]//a")
             href = link_element.get_attribute('href')
             print(f"Debug: Found {section_name} section with href: {href}")
-            link_element.click()  # Click on the link element
+            link_element.click()  # Klick auf das Link-Element
             time.sleep(2)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
             return section, True
         except Exception:
+            print(f"Debug: No <a> tag found for {section_name}.")
             try:
-                # If no href-Titelklasse, check for yt-formatted-string with the section name
+                # Wenn kein <a>-Tag gefunden wird, versuchen, den <yt-formatted-string>-Tag zu finden
                 title_element = section.find_element(By.XPATH, f'.//yt-formatted-string[contains(text(), "{section_name}")]')
                 print(f"Debug: Found {section_name} section without href")
                 return section, False
-            except Exception as e:
+            except Exception:
+                print(f"Debug: No <yt-formatted-string> tag found for {section_name}.")
                 continue
     print(f"Debug: {section_name} section not found.")
     return None, False
+
 
 def extract_item_hrefs_from_page(section=None):
     if section is None:
@@ -93,14 +97,11 @@ def extract_item_hrefs_from_page(section=None):
     else:
         item_elements = section.find_elements(By.CSS_SELECTOR, 'a.yt-simple-endpoint.image-wrapper.style-scope.ytmusic-two-row-item-renderer')
 
-    print(f"Debug: Found {len(item_elements)} elements in the specified section with selector 'a.yt-simple-endpoint.image-wrapper.style-scope.ytmusic-two-row-item-renderer'")
-
     item_hrefs = []
     for element in item_elements:
         href = element.get_attribute('href')
         if "browse/" in href:
             item_hrefs.append(href)
-            print(f"Debug: Item href added: {href}")
 
     print(f"Debug: Total number of items found: {len(item_hrefs)}")
     return item_hrefs
@@ -139,7 +140,13 @@ def move_to_finished_folder(src_folder, dest_folder):
 
     print(f"Debug: Moved {src_folder} to {dest_folder}")
 
+def sanitize_filename(name):
+    # Entferne ungültige Zeichen wie Schrägstriche und Null-Bytes
+    return re.sub(r'[\/\0]', '_', name)
+
 def download_item(item_url, artist_name):
+    sanitized_artist_name = sanitize_filename(artist_name)
+
     tmp_folder = "tmp"
     if not os.path.exists(tmp_folder):
         os.makedirs(tmp_folder)
@@ -152,7 +159,7 @@ def download_item(item_url, artist_name):
         "--embed-metadata",
         "--add-metadata",
         "--embed-thumbnail",
-        "--output", os.path.join(tmp_folder, artist_name, "%(album)s/%(title)s.%(ext)s"),
+        "--output", os.path.join(tmp_folder, sanitized_artist_name, "%(album)s/%(title)s.%(ext)s"),
         item_url
     ]
     subprocess.run(command)
@@ -197,6 +204,8 @@ def main():
                 print("Debug: Albums section not found.")
 
             # Process Singles
+            driver.get(artist_href)
+            time.sleep(2)
             singles_section, is_single_href = extract_section_hrefs("Singles")
             if singles_section:
                 if is_single_href:

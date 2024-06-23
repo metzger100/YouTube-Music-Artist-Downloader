@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import time
+import unicodedata
 import urllib.parse
 from mutagen.easymp4 import EasyMP4
 from selenium import webdriver
@@ -14,17 +15,42 @@ from selenium.webdriver.chrome.options import Options
 # Pfad zu deinem ChromeDriver
 chromedriver_path = '/usr/bin/chromedriver'
 
-# Setze die Optionen für den Chrome-Browser
+# Funktion, um den User-Agent zu erfassen
+def get_user_agent(chromedriver_path):
+    # Setze die Optionen für den temporären Chrome-Browser
+    temp_options = Options()
+    temp_options.add_argument("--headless")
+    temp_options.add_argument("--no-sandbox")
+    temp_options.add_argument("--disable-dev-shm-usage")
+
+    # Initialisiere den temporären Webdriver
+    temp_service = Service(chromedriver_path)
+    tmpdriver = webdriver.Chrome(service=temp_service, options=temp_options)
+
+    # Erfasse den User-Agent
+    user_agent = tmpdriver.execute_script("return navigator.userAgent")
+
+    # Beende den temporären Webdriver
+    tmpdriver.quit()
+
+    user_agent = str(user_agent)
+    user_agent = user_agent.replace("Headless", "")
+
+    print(f"Debug: latest useragent: {user_agent}")
+
+    return user_agent
+
+# Erfasse den User-Agent
+user_agent = get_user_agent(chromedriver_path)
+
+# Setze die Optionen für den Chrome-Browser mit dem erfassten User-Agent
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
-
-# Setze den User-Agent
-user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 chrome_options.add_argument(f'user-agent={user_agent}')
 
-# Initialisiere den Webdriver
+# Initialisiere den Webdriver mit dem erfassten User-Agent
 service = Service(chromedriver_path)
 driver = webdriver.Chrome(service=service, options=chrome_options)
 
@@ -141,8 +167,51 @@ def move_to_finished_folder(src_folder, dest_folder):
     print(f"Debug: Moved {src_folder} to {dest_folder}")
 
 def sanitize_filename(name):
-    # Entferne ungültige Zeichen wie Schrägstriche und Null-Bytes
-    return re.sub(r'[\/\0]', '_', name)
+    """
+    Sanitize a string so it could be used as part of a filename.
+    """
+    if name == '':
+        return ''
+
+    def replace_insane(char):
+        if char == '\n':
+            return ' '
+        elif char in '"*:<>?|/\\':
+            return '_'
+        elif char == '?' or ord(char) < 32 or ord(char) == 127:
+            return ''
+        elif char == '"':
+            return ''
+        elif char == ':':
+            return '_-'
+        elif char in '\\/|*<>':
+            return '_'
+        if char in '!&\'()[]{}$;`^,#' or char.isspace() or ord(char) > 127:
+            return '' if unicodedata.category(char)[0] in 'CM' else '_'
+        return char
+
+    # Replace look-alike Unicode glyphs
+    name = unicodedata.normalize('NFKC', name)
+    name = re.sub(r'[0-9]+(?::[0-9]+)+', lambda m: m.group(0).replace(':', '_'), name)  # Handle timestamps
+    result = ''.join(map(replace_insane, name))
+    result = re.sub(r'(\0.)(?:(?=\1)..)+', r'\1', result)  # Remove repeated substitute chars
+    STRIP_RE = r'(?:\0.|[ _-])*'
+    result = re.sub(f'^\0.{STRIP_RE}|{STRIP_RE}\0.$', '', result)  # Remove substitute chars from start/end
+    result = result.replace('\0', '') or '_'
+
+    while '__' in result:
+        result = result.replace('__', '_')
+    result = result.strip('_')
+    # Common case of "Foreign band name - English song title"
+    if result.startswith('-_'):
+        result = result[2:]
+    if result.startswith('-'):
+        result = '_' + result[len('-'):]
+    result = result.lstrip('.')
+    if not result:
+        result = '_'
+
+    return result
 
 def download_item(item_url, artist_name):
     sanitized_artist_name = sanitize_filename(artist_name)
@@ -160,6 +229,7 @@ def download_item(item_url, artist_name):
         "--embed-metadata",
         "--add-metadata",
         "--embed-thumbnail",
+        "--compat-options", "filename-sanitization",
         "--output", os.path.join(tmp_folder, sanitized_artist_name, "%(album)s/%(title)s.%(ext)s"),
         item_url
     ]
@@ -182,7 +252,7 @@ def main():
     artists = read_artists("artists.txt")
     for artist in artists:
         print(f"Debug: Processing artist: {artist}")
-        encoded_artist = urllib.parse.quote(artist)
+        encoded_artist = urllib.parse.quote(artist, safe='')
         artist_name, artist_href = extract_artist_href(encoded_artist, artist)
         if artist_href:
             print(f"Debug: Artist href found: {artist_href}")

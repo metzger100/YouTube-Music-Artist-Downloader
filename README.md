@@ -1,5 +1,5 @@
 # YouTube-Music-Artist-Downloader
-The goal of this script is, to build up a new database of music of my most wanted Artists. It is made for Arch but will work on other systems as well, by modifying the dependencies for selenium and maybe updating the useragent-string.
+The goal of this script is, to build up a new database of music of my most wanted Artists. It is made for Arch but will work on other systems as well, by modifying the dependencies for selenium.
 
 The script uses Selenium to scrape the YouTube Music Website and it uses yt-dlp to download the music.
 

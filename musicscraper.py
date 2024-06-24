@@ -142,9 +142,60 @@ def update_metadata(file_path, album_artist):
     audio.save()
     print(f"Debug: Updated metadata with album artist {album_artist} for {file_path}")
 
+def handle_album_conflicts(src_folder, dest_folder):
+    # Get the path of the deepest folder in src_folder
+    deepest_folder = get_deepest_folder(src_folder)
+    print(f"Debug: Deepest folder in src_folder: {deepest_folder}")
+
+    # Check if the corresponding path exists in dest_folder
+    relative_path = os.path.relpath(deepest_folder, src_folder)
+    dest_deepest_folder = os.path.join(dest_folder, relative_path)
+    print(f"Debug: Checking for deepest folder in dest_folder: {dest_deepest_folder}")
+
+    if os.path.exists(dest_deepest_folder):
+        # Count the number of files in both the src and dest deepest folders
+        src_file_count = count_files(deepest_folder)
+        dest_file_count = count_files(dest_deepest_folder)
+
+        # Determine which folder has fewer files and rename it
+        if src_file_count < dest_file_count:
+            if src_file_count == 1:
+                new_deepest_folder = os.path.join(os.path.dirname(deepest_folder), f"(Single) {os.path.basename(deepest_folder)}")
+            else:
+                new_deepest_folder = os.path.join(os.path.dirname(deepest_folder), f"(EP) {os.path.basename(deepest_folder)}")
+            os.rename(deepest_folder, new_deepest_folder)
+            print(f"Debug: Renamed {deepest_folder} to {new_deepest_folder}")
+        else:
+            if dest_file_count == 1:
+                new_dest_deepest_folder = os.path.join(os.path.dirname(dest_deepest_folder), f"(Single) {os.path.basename(dest_deepest_folder)}")
+            else:
+                new_dest_deepest_folder = os.path.join(os.path.dirname(dest_deepest_folder), f"(EP) {os.path.basename(dest_deepest_folder)}")
+            os.rename(dest_deepest_folder, new_dest_deepest_folder)
+            print(f"Debug: Renamed {dest_deepest_folder} to {new_dest_deepest_folder}")
+    else:
+        print(f"Debug: No path conflict found.")
+
+def get_deepest_folder(folder):
+    deepest_path = ""
+    max_depth = 0
+
+    for root, dirs, files in os.walk(folder):
+        depth = root[len(folder):].count(os.sep)
+        if depth > max_depth:
+            max_depth = depth
+            deepest_path = root
+
+    return deepest_path
+
+def count_files(folder):
+    return sum([len(files) for r, d, files in os.walk(folder)])
+
 def move_to_finished_folder(src_folder, dest_folder):
     if not os.path.exists(dest_folder):
         os.makedirs(dest_folder)
+
+    handle_album_conflicts(src_folder, dest_folder)
+
     for root, dirs, files in os.walk(src_folder, topdown=False):
         # Ensure the destination directories exist
         for name in dirs:

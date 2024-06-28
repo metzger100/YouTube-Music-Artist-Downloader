@@ -26,7 +26,7 @@ System-packages:<br />
 - python (https://archlinux.org/packages/core/x86_64/python/)
 
 5. Open terminal in folder
-6. Start the script with the command `python musicscraper.py`
+6. Start the script with the command `python youtubemusicartistdownloader.py`
 
 The script will download all albums and singles of the artists in `artist.txt` and save into the subfolder `music` in the following structure: /album_artist/album/title.m4a including all metadata and the albumcover.
 

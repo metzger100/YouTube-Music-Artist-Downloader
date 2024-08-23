@@ -1,3 +1,5 @@
+import argparse
+import concurrent.futures
 import difflib
 import os
 import re
@@ -11,6 +13,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from threading import Thread, Semaphore
 
 # Pfad zu deinem ChromeDriver
 chromedriver_path = '/usr/bin/chromedriver'
@@ -159,21 +162,25 @@ def handle_album_conflicts(src_folder, dest_folder):
 
         # Determine which folder has fewer files and rename it
         if src_file_count < dest_file_count:
-            if src_file_count == 1:
-                new_deepest_folder = os.path.join(os.path.dirname(deepest_folder), f"(Single) {os.path.basename(deepest_folder)}")
-            else:
-                new_deepest_folder = os.path.join(os.path.dirname(deepest_folder), f"(EP) {os.path.basename(deepest_folder)}")
+            rename_to = determine_unique_name(dest_deepest_folder, "(EP) " + os.path.basename(deepest_folder))
+            new_deepest_folder = os.path.join(os.path.dirname(deepest_folder), rename_to)
             os.rename(deepest_folder, new_deepest_folder)
             print(f"Debug: Renamed {deepest_folder} to {new_deepest_folder}")
         else:
-            if dest_file_count == 1:
-                new_dest_deepest_folder = os.path.join(os.path.dirname(dest_deepest_folder), f"(Single) {os.path.basename(dest_deepest_folder)}")
-            else:
-                new_dest_deepest_folder = os.path.join(os.path.dirname(dest_deepest_folder), f"(EP) {os.path.basename(dest_deepest_folder)}")
+            rename_to = determine_unique_name(dest_deepest_folder, "(EP) " + os.path.basename(dest_deepest_folder))
+            new_dest_deepest_folder = os.path.join(os.path.dirname(dest_deepest_folder), rename_to)
             os.rename(dest_deepest_folder, new_dest_deepest_folder)
             print(f"Debug: Renamed {dest_deepest_folder} to {new_dest_deepest_folder}")
     else:
         print(f"Debug: No path conflict found.")
+
+def determine_unique_name(base_folder, base_name):
+    index = 1
+    new_name = base_name
+    while os.path.exists(os.path.join(os.path.dirname(base_folder), new_name)):
+        new_name = f"{base_name}{index}"
+        index += 1
+    return new_name
 
 def get_deepest_folder(folder):
     deepest_path = ""
@@ -264,43 +271,100 @@ def sanitize_filename(name):
 
     return result
 
-def download_item(item_url, artist_name):
+def download_item(item_url, artist_name, tmp_folder):
     sanitized_artist_name = sanitize_filename(artist_name)
 
-    tmp_folder = "tmp"
     if not os.path.exists(tmp_folder):
         os.makedirs(tmp_folder)
-    command = [
-        "yt-dlp",
-        "-f", "bestaudio",
-        "--extract-audio",
-        "--parse-metadata", "release_year:(?s)(?P<meta_date>.+)",
-        "--parse-metadata", "playlist_index:(?s)(?P<track_number>.+)",
-        "--audio-format", "m4a",
-        "--embed-metadata",
-        "--add-metadata",
-        "--embed-thumbnail",
-        "--compat-options", "filename-sanitization",
-        "--output", os.path.join(tmp_folder, sanitized_artist_name, "%(album)s/%(title)s.%(ext)s"),
-        item_url
-    ]
-    subprocess.run(command)
-    print(f"Debug: Download finished!")
 
-    # Update metadata and move files
-    for root, dirs, files in os.walk(tmp_folder):
-        for file in files:
-            if file.endswith(".m4a"):
-                file_path = os.path.join(root, file)
-                update_metadata(file_path, artist_name)
+    def run_download():
+        command = [
+            "yt-dlp",
+            "--retries", "5",
+            "--retry-sleep",  "5",
+            "--concurrent-fragments", "10",
+            "-f", "bestaudio",
+            "--extract-audio",
+            "--parse-metadata", "release_year:(?s)(?P<meta_date>.+)",
+            "--parse-metadata", "playlist_index:(?s)(?P<track_number>.+)",
+            "--audio-format", "m4a",
+            "--embed-metadata",
+            "--add-metadata",
+            "--embed-thumbnail",
+            "--compat-options", "filename-sanitization",
+            "--output", os.path.join(tmp_folder, sanitized_artist_name, "%(album)s/%(title)s.%(ext)s"),
+            item_url
+        ]
+        subprocess.run(command)
 
-    time.sleep(2)
-    finished_folder = "music"
-    move_to_finished_folder(tmp_folder, finished_folder)
-    time.sleep(2)
+    def contains_webm_or_webp(folder):
+        for root, dirs, files in os.walk(folder):
+            for file in files:
+                if file.endswith(".webm") or file.endswith(".webp"):
+                    return True
+        return False
+
+    def get_error_folder_name(base_folder):
+        index = 0
+        while True:
+            error_folder = f"{base_folder}_Error{index}"
+            if not os.path.exists(error_folder):
+                return error_folder
+            index += 1
+
+    attempts = 0
+    max_attempts = 10
+    while attempts < max_attempts:
+        run_download()
+        attempts += 1
+        album_folder = os.path.join(tmp_folder, sanitized_artist_name)
+        if not contains_webm_or_webp(album_folder):
+            break
+        print(f"Debug: Found .webm or .webp files, retrying download attempt {attempts}/{max_attempts}")
+
+    # Update metadata and move files if download was successful
+    if not contains_webm_or_webp(album_folder):
+        for root, dirs, files in os.walk(tmp_folder):
+            for file in files:
+                if file.endswith(".m4a"):
+                    file_path = os.path.join(root, file)
+                    update_metadata(file_path, artist_name)
+
+        time.sleep(2)
+        finished_folder = "music"
+        move_to_finished_folder(tmp_folder, finished_folder)
+        time.sleep(2)
+    else:
+        error_folder = get_error_folder_name(tmp_folder)
+        os.rename(tmp_folder, error_folder)
+        print(f"Error: Failed to download {item_url} after {max_attempts} attempts")
+
+
+def download_items_in_parallel(item_urls, max_threads):
+    semaphore = Semaphore(max_threads)
+
+    def worker(item_data, idx):
+        item_url, artist_name = item_data
+        tmp_folder = f"tmp{idx}"
+        with semaphore:
+            download_item(item_url, artist_name, tmp_folder)
+
+    total = len(item_urls)
+    open(f"{total}_Albums_are downloaded.txt", 'w').close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+        executor.map(worker, item_urls, range(len(item_urls)))
+    os.remove(f"{total}_Albums_are downloaded.txt")
 
 def main():
+    parser = argparse.ArgumentParser(description="YouTube Music Artist Downloader")
+    parser.add_argument('-lat', '--livealbumtagger', action='store_true', help="Activate live album tagger")
+    parser.add_argument('-t', '--threads', type=int, default=1, help="Number of concurrent yt-dlp instances")
+    args = parser.parse_args()
+
     artists = read_artists("artists.txt")
+    all_hrefs = []  # Liste zur Sammlung aller Album-Hyperlinks mit zugehörigem Künstlernamen
+
     for artist in artists:
         print(f"Debug: Processing artist: {artist}")
         encoded_artist = urllib.parse.quote(artist, safe='')
@@ -318,10 +382,9 @@ def main():
                     album_hrefs = extract_item_hrefs_from_page()
                 else:
                     album_hrefs = extract_item_hrefs_from_page(albums_section)
-                for album_href in album_hrefs:
-                    youtube_music_album = f"{album_href}"
-                    print("Album Link:", youtube_music_album)
-                    download_item(youtube_music_album, artist_name)
+                print(f"Debug: Found {len(album_hrefs)} albums for {artist}")
+                all_hrefs.extend([(href, artist_name) for href in album_hrefs])
+
             else:
                 print("Debug: Albums section not found.")
 
@@ -334,16 +397,28 @@ def main():
                     single_hrefs = extract_item_hrefs_from_page()
                 else:
                     single_hrefs = extract_item_hrefs_from_page(singles_section)
-                for single_href in single_hrefs:
-                    youtube_music_single = f"{single_href}"
-                    print("Single Link:", youtube_music_single)
-                    download_item(youtube_music_single, artist_name)
+                print(f"Debug: Found {len(single_hrefs)} singles for {artist}")
+                all_hrefs.extend([(href, artist_name) for href in single_hrefs])
             else:
                 print("Debug: Singles section not found.")
         else:
             print("Debug: Artist href not found.")
+
+    print(f"Debug: Total {len(all_hrefs)} albums and singles to download")
+
+    # Download all albums and singles in parallel
+    download_items_in_parallel(all_hrefs, args.threads)
+
     print("Debug: Quitting driver")
     driver.quit()
+
+    # Check if the livealbumtagger flag is active
+    if args.livealbumtagger:
+        if os.path.exists('livealbumtagger.py'):
+            print("Debug: Running livealbumtagger.py")
+            os.system('python livealbumtagger.py -p "music"')
+        else:
+            print("Error: livealbumtagger.py not found!")
 
 if __name__ == "__main__":
     main()

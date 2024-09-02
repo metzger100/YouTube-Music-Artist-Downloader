@@ -63,7 +63,7 @@ def save_page_source(filename):
 
 def click_privacy_button():
     try:
-        button = driver.find_element(By.XPATH, '//button[@aria-label="Alle ablehnen"]')
+        button = driver.find_element(By.XPATH, '//button[@aria-label="Reject all"]')
         button.click()
         time.sleep(2)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
         print("Debug: 'Alle ablehnen' button clicked successfully.")
@@ -79,7 +79,7 @@ def extract_artist_href(search_term, artist):
     driver.get(youtube_music_search_link)
     time.sleep(2)  # Wartezeit, um sicherzustellen, dass die Seite vollständig geladen ist
     click_privacy_button()  # Datenschutzbutton klicken
-    # save_page_source('search_page.html')  # Speichern der geladenen Suchseite für Debugging
+    #save_page_source('search_page.html')  # Speichern der geladenen Suchseite für Debugging
 
     artist_elements = driver.find_elements(By.CSS_SELECTOR, 'a.yt-simple-endpoint.thumbnail-link[href*="channel/"]')
     print(f"Debug: Found {len(artist_elements)} elements with selector 'a.yt-simple-endpoint.thumbnail-link'")
@@ -373,10 +373,10 @@ def main():
             print(f"Debug: Artist href found: {artist_href}")
             driver.get(artist_href)
             time.sleep(2)
-            # save_page_source('artist_page.html')  # Speichern der geladenen Künstlerseite für Debugging
+            #save_page_source('artist_page.html')  # Speichern der geladenen Künstlerseite für Debugging
 
             # Process Albums
-            albums_section, is_album_href = extract_section_hrefs("Alben")
+            albums_section, is_album_href = extract_section_hrefs("Albums")
             if albums_section:
                 if is_album_href:
                     album_hrefs = extract_item_hrefs_from_page()

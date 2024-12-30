@@ -65,7 +65,7 @@ def click_privacy_button():
     try:
         button = driver.find_element(By.XPATH, '//button[@aria-label="Reject all"]')
         button.click()
-        time.sleep(2)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
+        time.sleep(1)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
         print("Debug: 'Alle ablehnen' button clicked successfully.")
     except Exception:
         print(f"Debug: Privacy button not found or could not be clicked.")
@@ -77,7 +77,7 @@ def extract_artist_href(search_term, artist):
     youtube_music_search_link = f"https://music.youtube.com/search?q={search_term}"
     print(f"Debug: Loading search page: {youtube_music_search_link}")
     driver.get(youtube_music_search_link)
-    time.sleep(2)  # Wartezeit, um sicherzustellen, dass die Seite vollständig geladen ist
+    time.sleep(1)  # Wartezeit, um sicherzustellen, dass die Seite vollständig geladen ist
     click_privacy_button()  # Datenschutzbutton klicken
     #save_page_source('search_page.html')  # Speichern der geladenen Suchseite für Debugging
 
@@ -104,7 +104,7 @@ def extract_section_hrefs(section_name):
             href = link_element.get_attribute('href')
             print(f"Debug: Found {section_name} section with href: {href}")
             link_element.click()  # Klick auf das Link-Element
-            time.sleep(2)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
+            time.sleep(1)  # Kurze Wartezeit, um sicherzustellen, dass die Aktion abgeschlossen ist
             return section, True
         except Exception:
             print(f"Debug: No <a> tag found for {section_name}.")
@@ -120,10 +120,41 @@ def extract_section_hrefs(section_name):
     return None, False
 
 
+def scroll_to_bottom(driver, scroll_pause_time=2, max_scrolls=10):
+    """
+    Scrolls to the bottom of the page to load all elements.
+    :param driver: Selenium WebDriver instance.
+    :param scroll_pause_time: Time to wait for the new elements to load after each scroll.
+    :param max_scrolls: Maximum number of scrolls to avoid infinite loops.
+    """
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    scroll_count = 0
+
+    while True:
+        # Scroll to the bottom
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(scroll_pause_time)  # wait for new content to load
+
+        # Check new height after scrolling
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height or scroll_count >= max_scrolls:
+            break
+        last_height = new_height
+        scroll_count += 1
+    print("Debug: Scrolling completed or maximum scroll count reached.")
+
 def extract_item_hrefs_from_page(section=None):
     if section is None:
+        # Scroll to the bottom of the page to load all items
+        scroll_to_bottom(driver)
+
+        # After scrolling, collect all the item links
         item_elements = driver.find_elements(By.CSS_SELECTOR, 'a.yt-simple-endpoint.image-wrapper.style-scope.ytmusic-two-row-item-renderer')
     else:
+        # Scroll within a specific section if provided
+        scroll_to_bottom(driver)
+
+        # After scrolling, collect all the item links from the section
         item_elements = section.find_elements(By.CSS_SELECTOR, 'a.yt-simple-endpoint.image-wrapper.style-scope.ytmusic-two-row-item-renderer')
 
     item_hrefs = []
@@ -330,10 +361,10 @@ def download_item(item_url, artist_name, tmp_folder):
                     file_path = os.path.join(root, file)
                     update_metadata(file_path, artist_name)
 
-        time.sleep(2)
+        time.sleep(1)
         finished_folder = "music"
         move_to_finished_folder(tmp_folder, finished_folder)
-        time.sleep(2)
+        time.sleep(1)
     else:
         error_folder = get_error_folder_name(tmp_folder)
         os.rename(tmp_folder, error_folder)
@@ -357,22 +388,100 @@ def download_items_in_parallel(item_urls, max_threads):
     os.remove(f"{total}_Albums_are downloaded.txt")
 
 def main():
-    parser = argparse.ArgumentParser(description="YouTube Music Artist Downloader")
-    parser.add_argument('-lat', '--livealbumtagger', action='store_true', help="Activate live album tagger")
-    parser.add_argument('-t', '--threads', type=int, default=1, help="Number of concurrent yt-dlp instances")
+    parser = argparse.ArgumentParser(
+        description=(
+            "YouTube Music Artist Downloader\n\n"
+            "This script automates downloading music from YouTube Music for specified artists.\n"
+            "You can:\n"
+            "1. Download music by reading artist names from 'artists.txt'.\n"
+            "2. Provide a custom artist list file using '-all'.\n"
+            "3. Directly download an album using '-da'.\n\n"
+            "Usage examples:\n"
+            "  python youtubemusicartistdownloader.py\n"
+            "  python youtubemusicartistdownloader.py -all custom_artists.txt\n"
+            "  python youtubemusicartistdownloader.py -lat\n"
+            "  python youtubemusicartistdownloader.py -t 4\n"
+            "  python youtubemusicartistdownloader.py -da \"Various Artists, https://music.youtube.com/playlist?list=OLAK5uy_example\"\n\n"
+            "Options:"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+
+    # Argumente definieren
+    parser.add_argument(
+        '-lat', '--livealbumtagger',
+        action='store_true',
+        help="Run the 'livealbumtagger.py' script after downloading. Requires 'livealbumtagger.py' in the script directory."
+    )
+    parser.add_argument(
+        '-t', '--threads',
+        type=int,
+        default=1,
+        help="Set the number of concurrent downloads (default: 1)."
+    )
+    parser.add_argument(
+        '-all', '--artistlinklist',
+        type=str,
+        help="Provide a custom artist list file in the format: artist_name, artist_href."
+    )
+    parser.add_argument(
+        '-da', '--directalbum',
+        type=str,
+        help="Directly download a single album. Format: 'artist_name, album_href'."
+    )
     args = parser.parse_args()
 
-    artists = read_artists("artists.txt")
+    if args.directalbum:
+        # Verarbeite die direkte Album-Flag
+        try:
+            artist_name, album_href = args.directalbum.split(",", 1)
+            artist_name = artist_name.strip()
+            album_href = album_href.strip()
+            print(f"Debug: Direct album download for artist '{artist_name}' with URL '{album_href}'")
+
+            # Starte den Download-Prozess direkt
+            download_items_in_parallel([(album_href, artist_name)], args.threads)
+        except ValueError:
+            print("Error: Invalid format for --directalbum. Use: 'artist_name, album_href'")
+        return  # Beende das Skript nach dem direkten Album-Download
+
+    if args.artistlinklist:
+        # Wenn die -all Flag gesetzt ist, lese die benutzerdefinierte Datei ein
+        artist_file = args.artistlinklist
+        artists = []
+        with open(artist_file, 'r') as file:
+            for line in file:
+                # Jede Zeile enthält artist_name und artist_href, getrennt durch ein Komma
+                artist_name, artist_href = line.strip().split(",", 1)
+                artists.append((artist_name.strip(), artist_href.strip()))
+    else:
+        # Ansonsten wird die Standarddatei "artists.txt" verwendet
+        artists = []
+        with open("artists.txt", "r") as file:
+            for line in file:
+                artist = line.strip()
+                if artist:
+                    # Hier wird extract_artist_href aufgerufen, um den artist_href für jeden Künstler zu extrahieren
+                    encoded_artist = urllib.parse.quote(artist, safe='')
+                    artist_name, artist_href = extract_artist_href(encoded_artist, artist)
+                    if artist_href:  # Wenn der href erfolgreich extrahiert wurde
+                        artists.append((artist_name, artist_href))
+                    else:
+                        print(f"Debug: Kein href für {artist} gefunden!")
+
     all_hrefs = []  # Liste zur Sammlung aller Album-Hyperlinks mit zugehörigem Künstlernamen
 
-    for artist in artists:
-        print(f"Debug: Processing artist: {artist}")
-        encoded_artist = urllib.parse.quote(artist, safe='')
-        artist_name, artist_href = extract_artist_href(encoded_artist, artist)
+    for artist_name, artist_href in artists:
+        print(f"Debug: Processing artist: {artist_name}")
         if artist_href:
             print(f"Debug: Artist href found: {artist_href}")
             driver.get(artist_href)
-            time.sleep(2)
+            time.sleep(1)
+
+            # Falls die -all Flag gesetzt ist, rufe die Methode click_privacy_button auf
+            if args.artistlinklist:
+                click_privacy_button()  # Diese Methode wird nach dem Laden der Seite aufgerufen
+
             #save_page_source('artist_page.html')  # Speichern der geladenen Künstlerseite für Debugging
 
             # Process Albums
@@ -382,7 +491,7 @@ def main():
                     album_hrefs = extract_item_hrefs_from_page()
                 else:
                     album_hrefs = extract_item_hrefs_from_page(albums_section)
-                print(f"Debug: Found {len(album_hrefs)} albums for {artist}")
+                print(f"Debug: Found {len(album_hrefs)} albums for {artist_name}")
                 all_hrefs.extend([(href, artist_name) for href in album_hrefs])
 
             else:
@@ -390,14 +499,14 @@ def main():
 
             # Process Singles
             driver.get(artist_href)
-            time.sleep(2)
+            time.sleep(1)
             singles_section, is_single_href = extract_section_hrefs("Singles")
             if singles_section:
                 if is_single_href:
                     single_hrefs = extract_item_hrefs_from_page()
                 else:
                     single_hrefs = extract_item_hrefs_from_page(singles_section)
-                print(f"Debug: Found {len(single_hrefs)} singles for {artist}")
+                print(f"Debug: Found {len(single_hrefs)} singles for {artist_name}")
                 all_hrefs.extend([(href, artist_name) for href in single_hrefs])
             else:
                 print("Debug: Singles section not found.")

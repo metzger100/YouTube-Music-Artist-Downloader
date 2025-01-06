@@ -120,7 +120,7 @@ def extract_section_hrefs(section_name):
     return None, False
 
 
-def scroll_to_bottom(driver, scroll_pause_time=2, max_scrolls=10):
+def scroll_to_bottom(driver, scroll_pause_time=2):
     """
     Scrolls to the bottom of the page to load all elements.
     :param driver: Selenium WebDriver instance.
@@ -128,7 +128,6 @@ def scroll_to_bottom(driver, scroll_pause_time=2, max_scrolls=10):
     :param max_scrolls: Maximum number of scrolls to avoid infinite loops.
     """
     last_height = driver.execute_script("return document.body.scrollHeight")
-    scroll_count = 0
 
     while True:
         # Scroll to the bottom
@@ -137,10 +136,9 @@ def scroll_to_bottom(driver, scroll_pause_time=2, max_scrolls=10):
 
         # Check new height after scrolling
         new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height or scroll_count >= max_scrolls:
+        if new_height == last_height:
             break
         last_height = new_height
-        scroll_count += 1
     print("Debug: Scrolling completed or maximum scroll count reached.")
 
 def extract_item_hrefs_from_page(section=None):
@@ -165,10 +163,6 @@ def extract_item_hrefs_from_page(section=None):
 
     print(f"Debug: Total number of items found: {len(item_hrefs)}")
     return item_hrefs
-
-def read_artists(filename):
-    with open(filename, 'r', encoding='utf-8') as file:
-        return [line.strip() for line in file if line.strip()]
 
 def update_metadata(file_path, album_artist):
     audio = EasyMP4(file_path)

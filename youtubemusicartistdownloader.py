@@ -395,7 +395,7 @@ def main():
             "  python youtubemusicartistdownloader.py -all custom_artists.txt\n"
             "  python youtubemusicartistdownloader.py -lat\n"
             "  python youtubemusicartistdownloader.py -t 4\n"
-            "  python youtubemusicartistdownloader.py -da \"Various Artists, https://music.youtube.com/playlist?list=OLAK5uy_example\"\n\n"
+            "  python youtubemusicartistdownloader.py -da Albums.txt\n\n"
             "Options:"
         ),
         formatter_class=argparse.RawTextHelpFormatter
@@ -421,23 +421,30 @@ def main():
     parser.add_argument(
         '-da', '--directalbum',
         type=str,
-        help="Directly download a single album. Format: 'artist_name, album_href'."
+        help="Provide a file containing a list of albums to download. Format: 'artist_name, album_href'."
     )
     args = parser.parse_args()
 
     if args.directalbum:
-        # Verarbeite die direkte Album-Flag
+        # Process the direct album file
+        album_file = args.directalbum
+        albums = []
         try:
-            artist_name, album_href = args.directalbum.split(",", 1)
-            artist_name = artist_name.strip()
-            album_href = album_href.strip()
-            print(f"Debug: Direct album download for artist '{artist_name}' with URL '{album_href}'")
+            with open(album_file, 'r') as file:
+                for line in file:
+                    # Each line contains artist_name and album_href, separated by a comma
+                    artist_name, album_href = line.strip().split(",", 1)
+                    albums.append((artist_name.strip(), album_href.strip()))
 
-            # Starte den Download-Prozess direkt
-            download_items_in_parallel([(album_href, artist_name)], args.threads)
+            print(f"Debug: Found {len(albums)} albums in '{album_file}'")
+
+            # Start the download process directly
+            download_items_in_parallel(albums, args.threads)
         except ValueError:
-            print("Error: Invalid format for --directalbum. Use: 'artist_name, album_href'")
-        return  # Beende das Skript nach dem direkten Album-Download
+            print("Error: Invalid format in album file. Each line should be: 'artist_name, album_href'")
+        except FileNotFoundError:
+            print(f"Error: File '{album_file}' not found!")
+        return  # Exit the script after processing the album file
 
     if args.artistlinklist:
         # Wenn die -all Flag gesetzt ist, lese die benutzerdefinierte Datei ein

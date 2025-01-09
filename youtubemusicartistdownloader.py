@@ -416,12 +416,12 @@ def main():
     parser.add_argument(
         '-all', '--artistlinklist',
         type=str,
-        help="Provide a custom artist list file in the format: artist_name, artist_href."
+        help="Provide a custom artist list file in the format: artist_name, artist_href per line."
     )
     parser.add_argument(
         '-da', '--directalbum',
         type=str,
-        help="Provide a file containing a list of albums to download. Format: 'artist_name, album_href'."
+        help="Provide a file containing a list of albums to download. Format: 'artist_name, album_href' per line."
     )
     args = parser.parse_args()
 
@@ -438,8 +438,18 @@ def main():
 
             print(f"Debug: Found {len(albums)} albums in '{album_file}'")
 
+            # Adjust the album URLs to work with yt-dlp
+            album_urls = []
+            for artist_name, album_href in albums:
+                # Check if the album_href is already a valid URL (like YouTube Music link)
+                if album_href.startswith("https://music.youtube.com/"):
+                    album_urls.append((album_href, artist_name))
+                else:
+                    # If not, treat it as a search query for yt-dlp (ytsearch:query)
+                    album_urls.append((f"ytsearch:{album_href}", artist_name))
+
             # Start the download process directly
-            download_items_in_parallel(albums, args.threads)
+            download_items_in_parallel(album_urls, args.threads)
         except ValueError:
             print("Error: Invalid format in album file. Each line should be: 'artist_name, album_href'")
         except FileNotFoundError:

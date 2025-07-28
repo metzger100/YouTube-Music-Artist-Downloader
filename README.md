@@ -10,13 +10,14 @@ The script uses Selenium to scrape the YouTube Music Website and yt-dlp to downl
 
 1. Create a folder for the script and the input file.
 2. Download the script and create a file called `artist.txt` and put it in the folder.
-3. Fill the `artist.txt` with the artists you want to download. For every artist, use a new line. Example:
+3. Provide a `logincookies.txt` in the folder of a YT Music Session of the Get cookies.txt LOCALLY Extension in Netscape Mode.
+4. Fill the `artist.txt` with the artists you want to download. For every artist, use a new line. Example:
    ```
    Townes van Zandt
    Seeed
    ACDC
    ```
-4. Install all dependencies of the script:
+5. Install all dependencies of the script:
    - **Python libraries:**
      - selenium (https://aur.archlinux.org/packages/python-selenium)
      - mutagen (https://archlinux.org/packages/extra/any/python-mutagen/)
@@ -25,8 +26,8 @@ The script uses Selenium to scrape the YouTube Music Website and yt-dlp to downl
      - chromedriver (https://aur.archlinux.org/packages/chromedriver)
      - yt-dlp (https://archlinux.org/packages/extra/any/yt-dlp/)
      - python (https://archlinux.org/packages/core/x86_64/python/)
-5. Open terminal in the folder.
-6. Start the script with the command `python youtubemusicartistdownloader.py`.
+6. Open terminal in the folder.
+7. Start the script with the command `python youtubemusicartistdownloader.py`.
 
 The script will download all albums and singles of the artists in `artist.txt` and save them into the subfolder `music` in the following structure: `/album_artist/album/title.m4a` including all metadata and the album cover.
 

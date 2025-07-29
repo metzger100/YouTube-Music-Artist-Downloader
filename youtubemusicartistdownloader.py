@@ -35,7 +35,7 @@ TMP_COOKIE_DIR = "tmp-cookie"
 COOKIE_ACTIVE_FILE = os.path.join(TMP_COOKIE_DIR, "cookies-latest.txt")
 
 # Interval (seconds) to refresh cookies in the background browser
-COOKIE_DUMP_INTERVAL = 120
+COOKIE_DUMP_INTERVAL = 60
 
 # Suffix whitelist for all Google/YouTube auth cookies
 ALLOWED_COOKIE_SUFFIXES = (

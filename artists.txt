@@ -1,0 +1,4 @@
+# One artist per line. See README section 5 for all formats.
+Radiohead
+Boards of Canada
+Aphex Twin, https://music.youtube.com/channel/UCxxxxxxxxxxxx

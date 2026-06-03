@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ytmusic-artist-downloader"
+version = "1.0.0"
+description = "Resumable YouTube Music artist/release downloader using ytmusicapi for discovery and yt-dlp for downloads."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "ytmusicapi>=1.5",
+]
+
+[project.optional-dependencies]
+metadata = ["mutagen>=1.46"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+ytmusic-artist-downloader = "ytmusic_artist_downloader.cli:main"
+
+[tool.setuptools]
+packages = ["ytmusic_artist_downloader"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+# External runtime requirements (not Python packages):
+#   - yt-dlp  (on PATH)
+#   - ffmpeg  (on PATH, required for audio extraction)

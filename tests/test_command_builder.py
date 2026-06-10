@@ -6,7 +6,7 @@ from ytmusic_artist_downloader.downloader import build_command
 from ytmusic_artist_downloader.models import DownloadJob
 
 
-def _config(tmp_path, cookie_mode="none", cookie_file=None):
+def _config(tmp_path, cookie_mode="none", cookie_file=None, yt_dlp_args=()):
     return AppConfig(
         input_file=tmp_path / "artists.txt",
         output_dir=tmp_path / "music",
@@ -19,6 +19,7 @@ def _config(tmp_path, cookie_mode="none", cookie_file=None):
         concurrent_fragments=2,
         discovery_cache=True,
         fail_fast=False,
+        yt_dlp_args=tuple(yt_dlp_args),
     )
 
 
@@ -67,3 +68,23 @@ def test_concurrent_fragments_value_propagates(tmp_path):
     cmd = build_command(_job(tmp_path), cfg, NoCookieProvider(), tmp_path / "ws")
     idx = cmd.index("--concurrent-fragments")
     assert cmd[idx + 1] == "4"
+
+
+def test_extra_yt_dlp_args_are_passed_before_output_and_url(tmp_path):
+    cfg = _config(
+        tmp_path,
+        yt_dlp_args=(
+            "--remote-components",
+            "ejs:github",
+            "--extractor-args",
+            "youtube:player_client=mweb",
+        ),
+    )
+    cmd = build_command(_job(tmp_path), cfg, NoCookieProvider(), tmp_path / "ws")
+
+    assert "--remote-components" in cmd
+    assert "ejs:github" in cmd
+    assert "--extractor-args" in cmd
+    assert "youtube:player_client=mweb" in cmd
+    assert cmd.index("youtube:player_client=mweb") < cmd.index("-o")
+    assert cmd[-1] == "https://music.youtube.com/browse/MPRE1"

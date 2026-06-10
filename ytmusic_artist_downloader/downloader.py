@@ -74,6 +74,13 @@ def build_command(
     # Cookie args are appended only when a cookie provider supplies them.
     cmd += cookie_provider.yt_dlp_args()
 
+    # User-supplied passthrough args let operators react to YouTube/yt-dlp
+    # changes (for example PO-token providers, player clients, or EJS solver
+    # configuration) without patching this package. These are intentionally
+    # inserted before the output template and URL so yt-dlp parses them as
+    # options rather than positional URLs.
+    cmd += list(config.yt_dlp_args)
+
     cmd += ["-o", output_template]
     cmd += [job.release_url]
     return cmd

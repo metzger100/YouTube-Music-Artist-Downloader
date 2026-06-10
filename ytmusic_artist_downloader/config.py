@@ -7,6 +7,7 @@ discovers, never touches cookies beyond checking that a file exists.
 
 from __future__ import annotations
 
+import shlex
 import shutil
 import sys
 from dataclasses import dataclass
@@ -47,6 +48,7 @@ class AppConfig:
     dry_run: bool = False
     refresh_discovery: bool = False
     verbose: bool = False
+    yt_dlp_args: tuple[str, ...] = ()
 
     @property
     def logs_dir(self) -> Path:
@@ -65,6 +67,14 @@ def build_config(args) -> AppConfig:
     """
     cookie_mode: CookieMode = "file" if args.auth == "cookies" else "none"
     cookie_file = Path(args.cookies) if (cookie_mode == "file" and args.cookies) else None
+
+    yt_dlp_args: list[str] = []
+    for raw_args in getattr(args, "yt_dlp_args", []) or []:
+        try:
+            yt_dlp_args.extend(shlex.split(raw_args))
+        except ValueError as exc:
+            raise ConfigError(f"Invalid --yt-dlp-args value {raw_args!r}: {exc}") from exc
+    yt_dlp_args.extend(getattr(args, "yt_dlp_arg", []) or [])
 
     return AppConfig(
         input_file=Path(args.artists) if args.artists else None,  # validated later
@@ -85,6 +95,7 @@ def build_config(args) -> AppConfig:
         refresh_discovery=bool(args.refresh_discovery),
         verbose=bool(args.verbose),
         metadata_patch=not bool(getattr(args, "no_metadata_patch", False)),
+        yt_dlp_args=tuple(yt_dlp_args),
     )
 
 

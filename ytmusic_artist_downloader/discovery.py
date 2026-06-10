@@ -14,6 +14,7 @@ from typing import Optional, Protocol
 
 from . import utils
 from .errors import DiscoveryError
+from .ytmusicapi_compat import apply_ytmusicapi_compat_patches
 from .models import (
     ArtistIdentity,
     ArtistRequest,
@@ -80,6 +81,7 @@ class YTMusicDiscoveryProvider:
     @property
     def client(self):
         if self._client is None:
+            apply_ytmusicapi_compat_patches()
             try:
                 from ytmusicapi import YTMusic  # type: ignore
             except ImportError as exc:  # pragma: no cover - env dependent

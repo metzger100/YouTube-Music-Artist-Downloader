@@ -106,6 +106,19 @@ python -m ytmusic_artist_downloader \
   --concurrent-fragments 2
 ```
 
+If YouTube/yt-dlp requires a temporary client, PO-token provider, or challenge
+solver workaround, pass extra yt-dlp options without editing the package:
+
+```bash
+python -m ytmusic_artist_downloader \
+  --artists artists.txt \
+  --yt-dlp-args "--remote-components ejs:github" \
+  --yt-dlp-args "--js-runtimes deno" \
+  --yt-dlp-args "--extractor-args youtube:player_client=mweb"
+```
+
+Alternatively, repeat `--yt-dlp-arg` for one argv token at a time. For tokens that start with `-`, use the equals form, e.g. `--yt-dlp-arg=--extractor-args --yt-dlp-arg youtube:player_client=mweb`.
+
 yt-dlp is invoked with exponential backoff (`--retry-sleep`), explicit pacing
 (`--sleep-requests`, `--sleep-interval`, `--max-sleep-interval`), `--continue`,
 and a download archive. It is **not** run with `--ignore-errors`: if yt-dlp
@@ -149,7 +162,7 @@ this effectively stops after the failing job.
 |---|---|---|
 | "Sign in to confirm…" | `cookie_expired` | export a fresh cookie file, re-run with `--auth cookies` |
 | HTTP 429 / too many requests | `rate_limited` | wait, lower `--workers`/`--concurrent-fragments`, re-run |
-| "po_token required" | `po_token_required` | retry later; supply cookies if persistent |
+| "po_token required" | `po_token_required` | use a current yt-dlp PO-token/provider setup via `--yt-dlp-args`, keep concurrency low, re-run |
 | name resolution / timeouts | `network_error` | check connectivity, re-run |
 | ffmpeg/metadata errors | `metadata_error` | confirm `ffmpeg` is installed |
 | leftover `.part`/`.webm` | `partial_download` | re-run; the job continues |
@@ -243,3 +256,13 @@ pytest          # parsing, matching, planning, cookies, command building,
 | `reporting.py` | logs, summary JSON, console output |
 | `errors.py` | error/failure category vocabulary |
 | `utils.py` | normalization, IDs, atomic JSON I/O |
+
+
+## 15. YouTube Music / ytmusicapi compatibility notes
+
+Some YouTube Music artist pages expose description hashtag chips as
+`searchEndpoint` objects instead of `urlEndpoint` objects. Older `ytmusicapi`
+versions may raise while parsing those pages even though album and single data is
+still available. This package applies a small compatibility shim before creating
+the `YTMusic` discovery client so those description-only links are ignored rather
+than aborting discovery.

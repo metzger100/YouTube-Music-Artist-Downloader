@@ -52,6 +52,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Number of parallel yt-dlp jobs. Default: 1")
     p.add_argument("--concurrent-fragments", type=int, default=2,
                    help="yt-dlp concurrent fragment count. Default: 2")
+    p.add_argument("--yt-dlp-arg", action="append", default=[],
+                   help=("Pass one extra argument directly to yt-dlp. "
+                         "Repeat for arguments and their values. For values "
+                         "that start with '-', use '='; e.g. "
+                         "--yt-dlp-arg=--extractor-args "
+                         "--yt-dlp-arg youtube:player_client=mweb."))
+    p.add_argument("--yt-dlp-args", action="append", default=[],
+                   help=("Pass shell-style extra arguments directly to yt-dlp. "
+                         "Can be repeated. Example: "
+                         "--yt-dlp-args='--remote-components ejs:github'."))
     p.add_argument("--conflict-policy", default="merge-safe",
                    choices=sorted(
                        ["merge-safe", "rename-new", "rename-existing",

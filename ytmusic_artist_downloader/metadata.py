@@ -31,8 +31,10 @@ class MetadataProcessor:
                 continue
             try:
                 audio = EasyMP4(str(path))
-                if not audio.get("albumartist"):
-                    audio["albumartist"] = artist_name
-                    audio.save()
+                # Keep library grouping consistent with the filesystem layout:
+                # the planned artist owns the release, even when YouTube/yt-dlp
+                # reports a long per-track contributor list as albumartist.
+                audio["albumartist"] = artist_name
+                audio.save()
             except Exception:  # noqa: BLE001 - tagging is best-effort
                 continue

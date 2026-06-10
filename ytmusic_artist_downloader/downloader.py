@@ -14,6 +14,7 @@ from . import errors
 from .config import AppConfig
 from .cookies import CookieProvider
 from .models import DownloadJob, DownloadResult
+from .utils import sanitize_filename
 
 # Safe default yt-dlp options (Phase 5). Concurrency-sensitive values are
 # injected from config rather than hard-coded.
@@ -57,8 +58,15 @@ def build_command(
     The output template writes into the job's workspace; postprocessing moves
     finished files into the final music folder afterwards.
     """
+    # Group every release under the artist that produced the job.
+    # Do not use yt-dlp's %(album_artist,artist,uploader)s here: YouTube Music
+    # often exposes long contributor lists such as
+    # "Mint Royale, Posdnuos, Chris Baker, ...", which fragments one artist's
+    # discography into many folders. Discovery/planning already resolved the
+    # owning artist, so that stable value is the correct library root.
+    artist_folder = sanitize_filename(job.artist_name)
     output_template = str(
-        Path(workspace) / "%(album_artist,artist,uploader)s"
+        Path(workspace) / artist_folder
         / "%(album,playlist_title)s" / "%(track_number,playlist_index)02d - %(title)s.%(ext)s"
     )
 

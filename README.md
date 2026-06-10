@@ -203,9 +203,15 @@ Conflict policy controls what happens when a release already exists in `music/`:
 level it first encounters (e.g. an existing artist folder), so prefer the
 default `merge-safe` if you want per-file behavior.
 
+Downloads are grouped by the artist that produced the job/discovery result,
+not by yt-dlp's per-track `album_artist`/`artist` metadata. This keeps releases
+under stable folders such as `music/Mint Royale/Album/` even when YouTube Music
+reports long contributor lists for individual tracks.
+
 Post-download album-artist tagging is on by default; disable it with
 `--no-metadata-patch`. Tagging also requires the optional `mutagen` package and
-is skipped silently if it is not installed.
+is skipped silently if it is not installed. When enabled, the album-artist tag is
+normalised to the planned artist for the same reason as the folder layout.
 
 ## 13. Legal and account-risk warning
 

@@ -88,3 +88,35 @@ def test_extra_yt_dlp_args_are_passed_before_output_and_url(tmp_path):
     assert "youtube:player_client=mweb" in cmd
     assert cmd.index("youtube:player_client=mweb") < cmd.index("-o")
     assert cmd[-1] == "https://music.youtube.com/browse/MPRE1"
+
+def test_output_template_uses_planned_artist_not_ytdlp_metadata(tmp_path):
+    job = DownloadJob(
+        job_id="abc",
+        artist_name="Mint Royale",
+        release_title="Album",
+        release_type="album",
+        release_url="https://music.youtube.com/browse/MPRE1",
+        output_root=tmp_path / "music",
+    )
+    cmd = build_command(job, _config(tmp_path), NoCookieProvider(), tmp_path / "ws")
+    output_template = cmd[cmd.index("-o") + 1]
+
+    assert str(tmp_path / "ws" / "Mint Royale") in output_template
+    assert "%(album_artist,artist,uploader)s" not in output_template
+    assert "%(album,playlist_title)s" in output_template
+
+
+def test_output_template_sanitizes_planned_artist_folder(tmp_path):
+    job = DownloadJob(
+        job_id="abc",
+        artist_name='Artist: Name/With*Bad?Chars',
+        release_title="Album",
+        release_type="album",
+        release_url="https://music.youtube.com/browse/MPRE1",
+        output_root=tmp_path / "music",
+    )
+    cmd = build_command(job, _config(tmp_path), NoCookieProvider(), tmp_path / "ws")
+    output_template = cmd[cmd.index("-o") + 1]
+
+    assert str(tmp_path / "ws" / "Artist_ Name_With_Bad_Chars") in output_template
+
